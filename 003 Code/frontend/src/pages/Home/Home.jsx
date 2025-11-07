@@ -28,7 +28,6 @@ export default function Home() {
     const fetchAllFileNameList = async () => {
       try {
         const res = await axios.get(
-          "https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/load"
         );
         if (Array.isArray(res.data)) {
           for (const fileName of res.data) {
@@ -45,13 +44,10 @@ export default function Home() {
         const [fileListRes, templateListRes, pluginTypesRes] =
           await Promise.all([
             axios.get(
-              "https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/load"
             ),
             axios.get(
-              `https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/customlist/user/${userId}`
             ),
             axios.get(
-              "https://port-0-fmds2-mgvyuurmef92981c.sel3.cloudtype.app/plugin-instance/all"
             ),
           ]);
 
@@ -75,7 +71,6 @@ export default function Home() {
     const fetchAllTemplatesList = async () => {
       try {
         const res = await axios.get(
-          `https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/customlist/user/${userId}`
         );
         res.data.forEach((template) => fetchTemplatesData(template.id));
       } catch (err) {
@@ -86,7 +81,6 @@ export default function Home() {
     const fetchPluginChartTypes = async () => {
       try {
         const res = await axios.get(
-          "https://port-0-fmds2-mgvyuurmef92981c.sel3.cloudtype.app/plugin-instance/all"
         );
         setPluginChartTypes(res.data);
         console.log(
@@ -138,7 +132,6 @@ export default function Home() {
     try {
       const encoded = encodeURIComponent(fileName);
       const res = await axios.get(
-        `https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/load/${encoded}`
       );
       const raw = res.data;
       if (!Array.isArray(raw) || raw.length === 0) return;
@@ -160,7 +153,6 @@ export default function Home() {
   const fetchTemplatesData = async (templateId) => {
     try {
       const res = await axios.get(
-        `https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/customs/list/${templateId}`
       );
       const components = res.data.customs;
       if (!Array.isArray(components)) return;
@@ -209,13 +201,11 @@ export default function Home() {
           const pluginTypeId = pluginInstance.typeId;
 
           const res1 = await axios.get(
-            `https://port-0-fmds2-mgvyuurmef92981c.sel3.cloudtype.app/plugin-type/${pluginTypeId}/renderer`
           );
           if (!alive) return;
           setPluginCode(res1.data.rendererCode || "");
 
           const res2 = await axios.post(
-            `https://port-0-fmds2-mgvyuurmef92981c.sel3.cloudtype.app/plugin-instance/${instanceId}/data`,
             {}
           );
           const rawData = res2.data || [];
@@ -235,7 +225,6 @@ export default function Home() {
           setPluginData(processedData);
 
           const res3 = await axios.get(
-            `https://port-0-fmds2-mgvyuurmef92981c.sel3.cloudtype.app/plugin-instance/${instanceId}`
           );
           if (!alive) return;
           setPluginOptions(res3.data?.options || {});
