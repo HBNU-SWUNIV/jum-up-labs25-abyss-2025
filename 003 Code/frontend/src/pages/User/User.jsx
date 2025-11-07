@@ -25,7 +25,6 @@ const userColumns = [
 
 const API_BASE =
   process.env.REACT_APP_FMDS_API_BASE ||
-  "https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app";
 
 const api = axios.create({
   baseURL: API_BASE,
