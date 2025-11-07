@@ -117,9 +117,9 @@ export default function Dashboard() {
     const fetchAllData = async () => {
       try {
         const [filesRes, templatesRes, pluginsRes] = await Promise.all([
-          axios.get("https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/load"),
-          axios.get(`https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/customlist/user/${userId}`),
-          axios.get("https://port-0-fmds2-mgvyuurmef92981c.sel3.cloudtype.app/plugin-instance/all"),
+          axios.get),
+          axios.get(),
+          axios.get(),
         ]);
 
         setTables(filesRes.data || []);
@@ -135,7 +135,7 @@ export default function Dashboard() {
 
     const fetchUploadedFileNames = async () => {
       try {
-        const res = await axios.get("https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/load");
+        const res = await axios.get();
         if (Array.isArray(res.data)) setTables(res.data);
         res.data.forEach((fileName) => fetchFileData(fileName));
       } catch (err) {
@@ -146,7 +146,6 @@ export default function Dashboard() {
     const fetchAllTemplates = async () => {
       try {
         const res = await axios.get(
-          `https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/customlist/user/${userId}`
         );
         res.data.forEach((template) => fetchTemplatesFromServer(template.id));
       } catch (err) {
@@ -156,7 +155,7 @@ export default function Dashboard() {
 
     const fetchPluginChartTypes = async () => {
       try {
-        const res = await axios.get("https://port-0-fmds2-mgvyuurmef92981c.sel3.cloudtype.app/plugin-instance/all");
+        const res = await axios.get();
         setPluginChartTypes(res.data.map((item) => item));
       } catch (err) {
         console.error("플러그인 인스턴스 목록 불러오기 실패:", err);
@@ -173,7 +172,6 @@ export default function Dashboard() {
     try {
       const encoded = encodeURIComponent(fileName);
       const res = await axios.get(
-        `https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/load/${encoded}`
       );
       const raw = res.data;
       if (!Array.isArray(raw) || raw.length === 0) return;
@@ -195,7 +193,6 @@ export default function Dashboard() {
   const fetchTemplatesFromServer = async (templateId) => {
     try {
       const res = await axios.get(
-        `https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/customs/list/${templateId}`
       );
       const components = res.data.customs;
       if (!Array.isArray(components)) return;
@@ -322,13 +319,11 @@ export default function Dashboard() {
           const pluginTypeId = pluginInstance.typeId;
 
           const res1 = await axios.get(
-            `https://port-0-fmds2-mgvyuurmef92981c.sel3.cloudtype.app/plugin-type/${pluginTypeId}/renderer`
           );
           if (!alive) return;
           setPluginCode(res1.data.rendererCode);
 
           const res2 = await axios.post(
-            `https://port-0-fmds2-mgvyuurmef92981c.sel3.cloudtype.app/plugin-instance/${instanceId}/data`,
             {}
           );
           const rawData = res2.data || [];
@@ -348,7 +343,6 @@ export default function Dashboard() {
           setPluginData(processedData);
 
           const res3 = await axios.get(
-            `https://port-0-fmds2-mgvyuurmef92981c.sel3.cloudtype.app/plugin-instance/${instanceId}`
           );
           if (!alive) return;
           setPluginOptions(res3.data.options);
@@ -563,7 +557,6 @@ export default function Dashboard() {
 
     try {
       const res = await axios.post(
-        "https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/customlist",
         { name, userId }
       );
       const templateId = res.data.id;
@@ -608,7 +601,6 @@ export default function Dashboard() {
 
     try {
       await axios.post(
-        "https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/custom",
         payload
       );
       const usedFiles = Object.values(widgets).map((w) => w?.file);
@@ -636,7 +628,6 @@ export default function Dashboard() {
 
     try {
       await axios.delete(
-        `https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/userlist/${currentTemplateId}`
       );
       const updated = { ...templates };
       delete updated[currentTemplateName];
