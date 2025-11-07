@@ -26,7 +26,6 @@ const patientColumns = [
 /** ✅ API 베이스(ABS) */
 const API_BASE =
   process.env.REACT_APP_FMDS_API_BASE ||
-  "https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app";
 
 /** 공용 axios 인스턴스 */
 const api = axios.create({
