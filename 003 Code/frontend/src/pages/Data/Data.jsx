@@ -18,7 +18,6 @@ export default function Data() {
     const fetchFileList = async () => {
       try {
         const res = await axios.get(
-          "https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/load"
         );
         if (Array.isArray(res.data)) setFileNames(res.data);
       } catch (err) {
@@ -39,7 +38,6 @@ export default function Data() {
 
     try {
       await axios.post(
-        "https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/upload",
         formData,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
@@ -57,7 +55,6 @@ export default function Data() {
     try {
       const encodedFileName = encodeURIComponent(fileName);
       const res = await axios.get(
-        `https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/load/${encodedFileName}`
       );
       const raw = res.data;
 
