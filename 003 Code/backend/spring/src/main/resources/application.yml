@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: jdbc:mariadb://svc.sel4.cloudtype.app:32390/pearl1
+    username: pearl
+    password: 12345678
+    driver-class-name: org.mariadb.jdbc.Driver
+
+  data:
+    mongodb:
+      uri: mongodb+srv://admin:5003@fmds.ydvxk.mongodb.net/data?retryWrites=true&w=majority&appName=FMDS
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+app:
+  qr:
+    output-dir: ./qr-store       # QR PNG 저장 경로(상대 경로)
+    base-url: http://localhost:8080/qr  # 클라이언트가 접근할 URL prefix
+
