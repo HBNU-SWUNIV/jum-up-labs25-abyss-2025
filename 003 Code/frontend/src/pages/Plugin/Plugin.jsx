@@ -42,7 +42,7 @@ export default function Plugin() {
   const [searchKeyword, setSearchKeyword] = useState("");
 
   // API BASE
-  const API_BASE = "https://port-0-fmds2-mgvyuurmef92981c.sel3.cloudtype.app";
+  const API_BASE = "";
 
   // 인스턴스 모달 열기/닫기
   const openPluginInstanceModal = () => {
@@ -163,7 +163,6 @@ export default function Plugin() {
     const fetchModelTypes = async () => {
       try {
         const res = await axios.get(
-          "https://port-0-fmds-abs-m7bi3pf13137ad5e.sel4.cloudtype.app/data/load"
         );
         if (Array.isArray(res.data)) setModelTypeOptions(res.data);
       } catch (err) {
