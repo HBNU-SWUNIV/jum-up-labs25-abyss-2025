@@ -1,38 +1,33 @@
-// src/routes/AppRoutes.jsx
+// frontend/src/routes/AppRoutes.jsx
 import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
 import DefaultLayout from "layouts/DefaultLayout";
 import { routes } from './routeConfig';
 
-/**
- * AppRoutes
- * - routeConfig를 기반으로 <Routes> 구조를 생성
- * - 공용 레이아웃(DefaultLayout) 아래에 보호된 라우트 적용
- */
 const AppRoutes = () => {
   return (
-    <Suspense fallback={<div style={{ padding: 24 }}>⏳ 페이지 로딩 중...</div>}>
+    <Suspense fallback={<div style={{ padding: 24 }}>Loading...</div>}>
       <Routes>
-        {/* Public routes (로그인/Unauthorized) */}
+        {/* Public routes */}
         {routes.filter(r => r?.meta?.public).map(r => (
           <Route key={r.path} path={r.path} element={r.element} />
         ))}
 
-        {/* 기본 레이아웃 적용 */}
+        {/* Layout wrapper */}
         <Route element={<DefaultLayout />}>
-          {/* 로그인 필요, 역할 제한 없는 라우트 */}
+          {/* 로그인 필요 (roles 미지정) */}
           <Route element={<ProtectedRoute />}>
             {routes
               .filter(r => !r?.meta?.public && !r?.meta?.roles)
               .map(r => (
                 <Route key={r.path} path={r.path} element={r.element} />
               ))}
-            {/* 기본 진입 → /home */}
+            {/* 루트 인덱스 → /home */}
             <Route index element={<Navigate to="/home" replace />} />
           </Route>
 
-          {/* 역할 제한 라우트 (예: admin 전용) */}
+          {/* roles 제한 라우트 (예: admin) */}
           {routes
             .filter(r => r?.meta?.roles && !r?.meta?.public)
             .map(r => (
@@ -41,7 +36,7 @@ const AppRoutes = () => {
               </Route>
             ))}
 
-          {/* 기타 잘못된 경로 → /home 리다이렉트 */}
+          {/* 기타 → /home */}
           <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Route>

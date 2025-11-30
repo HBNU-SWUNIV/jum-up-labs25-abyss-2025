@@ -19,8 +19,34 @@ export default function Home() {
   const [templates, setTemplates] = useState({});
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [tableData, setTableData] = useState({});
+  const [reloadTrigger, setReloadTrigger] = useState(0);
+  const pendingModelUpdatesRef = React.useRef(new Set());
   const [selectedTemplateName, setSelectedTemplateName] = useState(null);
   const [pluginChartTypes, setPluginChartTypes] = useState([]);
+
+  // memoized WidgetContent (identical to Dashboard)
+  const WidgetContent = React.useMemo(
+    () =>
+      React.memo(
+        function WidgetContent({ widgetInfo, widgetId, item, renderChart, reloadKey }) {
+          console.log("[HOME WidgetContent render]", { widgetId, chart: widgetInfo?.chart, reloadKey });
+          if (!widgetInfo) {
+            return <div className="widget-content">차트 없음</div>;
+          }
+          return (
+            <div className="widget-content">
+              {renderChart(widgetInfo, item, reloadKey)}
+            </div>
+          );
+        },
+        (prev, next) =>
+          prev.widgetInfo === next.widgetInfo &&
+          prev.widgetId === next.widgetId &&
+          prev.item === next.item &&
+          prev.reloadKey === next.reloadKey
+      ),
+    []
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,6 +54,7 @@ export default function Home() {
     const fetchAllFileNameList = async () => {
       try {
         const res = await axios.get(
+          ""
         );
         if (Array.isArray(res.data)) {
           for (const fileName of res.data) {
@@ -44,10 +71,13 @@ export default function Home() {
         const [fileListRes, templateListRes, pluginTypesRes] =
           await Promise.all([
             axios.get(
+              ""
             ),
             axios.get(
+              ``
             ),
             axios.get(
+              ""
             ),
           ]);
 
@@ -71,6 +101,7 @@ export default function Home() {
     const fetchAllTemplatesList = async () => {
       try {
         const res = await axios.get(
+          ``
         );
         res.data.forEach((template) => fetchTemplatesData(template.id));
       } catch (err) {
@@ -81,6 +112,7 @@ export default function Home() {
     const fetchPluginChartTypes = async () => {
       try {
         const res = await axios.get(
+          ""
         );
         setPluginChartTypes(res.data);
         console.log(
@@ -99,31 +131,53 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // WebSocket 연결: 실시간 데이터 수신
+  // WebSocket 연결: 실시간 데이터 수신 (pose_events, Dashboard와 동일)
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8080/ws/data");
+    const CONNECT_URL = "";
+    const ws = new WebSocket(CONNECT_URL);
 
     ws.onopen = () => {
-      console.log("✅ Home WebSocket connected");
+      console.log("✅ Home WebSocket connected:", CONNECT_URL);
+      ws.send(JSON.stringify({ type: "subscribe", modelType: "pose_events" }));
     };
 
     ws.onmessage = (event) => {
       try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === "update" && msg.modelType && Array.isArray(msg.data)) {
-          console.log("📡 Home 실시간 데이터 업데이트 수신:", msg.modelType);
+        const text = typeof event.data === "string" ? event.data : "";
+        const msg = text ? JSON.parse(text) : {};
+
+        const isUpdate =
+          (msg && msg.type === "update") ||
+          (msg && msg.event === "update");
+
+        if (!isUpdate || !msg.modelType) return;
+
+        if (msg.modelType === "pose_events") {
+          console.log("[HOME WS] pose_events update:", msg);
+
+          if (!ws._poseTickTimer) {
+            ws._poseTickTimer = setTimeout(() => {
+              setReloadTrigger((n) => n + 1);
+              ws._poseTickTimer = null;
+            }, 100);
+          }
+
+          pendingModelUpdatesRef.current.add("pose_events");
+        }
+
+        if (Array.isArray(msg.data)) {
           setTableData((prev) => ({
             ...prev,
             [msg.modelType]: msg.data,
           }));
         }
       } catch (err) {
-        console.error("⚠️ Home WebSocket 메시지 파싱 실패:", err);
+        console.error("⚠️ Home WS parse error:", err);
       }
     };
 
-    ws.onerror = (err) => console.error("❌ Home WebSocket 오류:", err);
-    ws.onclose = () => console.log("🔌 Home WebSocket 연결 종료");
+    ws.onerror = (err) => console.error("Home WS error:", err);
+    ws.onclose = () => console.log("Home WS closed");
 
     return () => ws.close();
   }, []);
@@ -132,6 +186,7 @@ export default function Home() {
     try {
       const encoded = encodeURIComponent(fileName);
       const res = await axios.get(
+        ``
       );
       const raw = res.data;
       if (!Array.isArray(raw) || raw.length === 0) return;
@@ -153,6 +208,7 @@ export default function Home() {
   const fetchTemplatesData = async (templateId) => {
     try {
       const res = await axios.get(
+        ``
       );
       const components = res.data.customs;
       if (!Array.isArray(components)) return;
@@ -182,11 +238,11 @@ export default function Home() {
         [templateName]: { id: templateId, layout, widgets },
       }));
     } catch (err) {
-      console.error("템플릿 불러오기 실패:", err);
+      // console.error("템플릿 불러오기 실패:", err);
     }
   };
 
-  function PluginChartRenderer({ pluginInstance, widgetSize }) {
+  function PluginChartRenderer({ pluginInstance, widgetSize, reloadTrigger }) {
     const [Plugincode, setPluginCode] = useState("");
     const [pluginData, setPluginData] = useState([]);
     const [pluginOptions, setPluginOptions] = useState({});
@@ -201,23 +257,22 @@ export default function Home() {
           const pluginTypeId = pluginInstance.typeId;
 
           const res1 = await axios.get(
+            ``
           );
           if (!alive) return;
           setPluginCode(res1.data.rendererCode || "");
 
           const res2 = await axios.post(
+            ``,
             {}
           );
           const rawData = res2.data || [];
           let processedData = [];
 
           if (rawData.length > 0) {
-            // 첫 번째 데이터 아이템에 'fields' 속성이 정의되어 있는지 확인
             if (rawData[0].fields !== undefined) {
-              // Case 1: 엑셀 데이터 (기존 로직)
               processedData = rawData.map((item) => item.fields);
             } else {
-              // Case 2: 스켈레톤 데이터 (원본 데이터 그대로 사용)
               processedData = rawData;
             }
           }
@@ -225,6 +280,7 @@ export default function Home() {
           setPluginData(processedData);
 
           const res3 = await axios.get(
+            ``
           );
           if (!alive) return;
           setPluginOptions(res3.data?.options || {});
@@ -237,7 +293,7 @@ export default function Home() {
       return () => {
         alive = false;
       };
-    }, [pluginInstance]);
+    }, [pluginInstance, reloadTrigger]);
 
     // ✅ 카드 중앙 정렬 & 레전드 여백 보정을 위한 높이 보정
     const chartPaddingY = 32; // 레전드/상하 숨쉬기 공간
@@ -323,7 +379,7 @@ export default function Home() {
     );
   }
 
-  const renderChart = (widgetInfo, widgetSize) => {
+  const renderChart = (widgetInfo, widgetSize, reloadKey = 0) => {
     const isPluginChart = pluginChartTypes.some(
       (plugin) => plugin._id === widgetInfo.chart
     );
@@ -335,6 +391,7 @@ export default function Home() {
         <PluginChartRenderer
           pluginInstance={pluginInstance}
           widgetSize={widgetSize}
+          reloadTrigger={reloadKey}
         />
       );
     }
@@ -482,22 +539,36 @@ export default function Home() {
           isResizable={false}
           rowHeight={50}
         >
-          {selectedTemplate.layout.map((item) => (
-            <div key={item.i} className="widget no-border">
-              {selectedTemplate.widgets[item.i] ? (
-                <div className="widget-content">
-                  {renderChart(selectedTemplate.widgets[item.i], item)}
-                </div>
-              ) : (
-                <div
-                  className="widget-content"
-                  style={{ display: "grid", placeItems: "center" }}
-                >
-                  <span className="text-muted">차트 없음</span>
-                </div>
-              )}
-            </div>
-          ))}
+          {selectedTemplate.layout.map((item) => {
+            const widget = selectedTemplate.widgets[item.i];
+            let isPoseWidget = false;
+            if (widget && widget.chart) {
+              const pluginInstance = pluginChartTypes.find(
+                (plugin) =>
+                  plugin._id === widget.chart ||
+                  plugin.modelType === widget.chart ||
+                  plugin.typeId === widget.chart
+              );
+              if (pluginInstance && pluginInstance.modelType === "pose_events") {
+                isPoseWidget = true;
+              }
+              if (widget.file === "pose_events") {
+                isPoseWidget = true;
+              }
+            }
+            const reloadKey = isPoseWidget ? reloadTrigger : 0;
+            return (
+              <div key={item.i} className="widget no-border">
+                <WidgetContent
+                  widgetInfo={widget}
+                  widgetId={item.i}
+                  item={item}
+                  renderChart={renderChart}
+                  reloadKey={reloadKey}
+                />
+              </div>
+            );
+          })}
         </ResponsiveGridLayout>
       )}
     </div>

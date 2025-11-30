@@ -2,7 +2,7 @@ package caps.fmds.Controller;
 
 import caps.fmds.Service.DataService.DataService;
 import caps.fmds.Service.UserCustomService.UserCustomService;
-//import caps.fmds.Service.UserGroupService.UserGroupService;
+import caps.fmds.Service.UserGroupService.UserGroupService;
 import caps.fmds.Service.UserListService.UserListService;
 import caps.fmds.Service.UserService.UserService;
 import caps.fmds.item.*;
@@ -25,7 +25,7 @@ import java.util.*;
 public class DataController {
     private final DataService dataService;
 
-//    private final UserGroupService userGroupService;
+    private final UserGroupService userGroupService;
     private final UserService userService;
 
     private final UserListService userListService;
@@ -86,13 +86,13 @@ public class DataController {
     }
 
 
-//    // 그룹 생성
-//    @PostMapping("/group")
-//    @Operation(summary = "그룹 생성")
-//    public ResponseEntity<UserGroup> createGroup(@RequestBody UserGroupRequest request) {
-//        UserGroup savedGroup = userGroupService.createGroup(request);
-//        return ResponseEntity.ok(savedGroup);
-//    }
+    // 그룹 생성
+    @PostMapping("/group")
+    @Operation(summary = "그룹 생성")
+    public ResponseEntity<UserGroup> createGroup(@RequestBody UserGroupRequest request) {
+        UserGroup savedGroup = userGroupService.createGroup(request);
+        return ResponseEntity.ok(savedGroup);
+    }
 
     // 유저 생성
     @PostMapping("/user")
@@ -104,41 +104,6 @@ public class DataController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
-    }
-
-    // 유저 단건 조회
-    @GetMapping("/user/{id}")
-    @Operation(summary = "유저 단건 조회")
-    public ResponseEntity<?> getUser(@PathVariable Long id) {
-        return userService.getUser(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-
-    // 유저 전체 조회
-    @GetMapping("/users")
-    @Operation(summary = "유저 전체 조회")
-    public ResponseEntity<List<User>> listUsers() {
-        return ResponseEntity.ok(userService.listUsers());
-    }
-
-    // 유저 수정
-    @PutMapping("/user/{id}")
-    @Operation(summary = "유저 수정")
-    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody UserUpdateRequest request) {
-        try {
-            return ResponseEntity.ok(userService.updateUser(id, request));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }
-
-    // 유저 삭제
-    @DeleteMapping("/user/{id}")
-    @Operation(summary = "유저 삭제")
-    public ResponseEntity<?> deleteUser(@PathVariable Long id) {
-        userService.deleteUser(id);
-        return ResponseEntity.noContent().build();
     }
 
 

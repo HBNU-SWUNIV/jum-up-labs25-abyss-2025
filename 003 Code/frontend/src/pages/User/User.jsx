@@ -23,8 +23,7 @@ const userColumns = [
   { field: "phone", headerName: "연락처", width: 140 },
 ];
 
-const API_BASE =
-  process.env.REACT_APP_FMDS_API_BASE ||
+const API_BASE = process.env.REACT_APP_FMDS_API_BASE || "";
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -40,7 +39,9 @@ export default function User() {
 
   // 선택/페이지/토스트
   const [selection, setSelection] = useState([]);
-  const [paginationModel, setPaginationModel] = useState(paginationModelDefault);
+  const [paginationModel, setPaginationModel] = useState(
+    paginationModelDefault
+  );
   const [toast, setToast] = useState(null);
 
   // 추가 모달
@@ -149,8 +150,7 @@ export default function User() {
     if (targetIds.length === 0) {
       return showToast("현재 페이지에서 선택된 항목이 없습니다.", true);
     }
-    if (!window.confirm(`${targetIds.length}건 삭제하시겠습니까?`))
-      return;
+    if (!window.confirm(`${targetIds.length}건 삭제하시겠습니까?`)) return;
 
     try {
       await Promise.all(
@@ -261,7 +261,9 @@ export default function User() {
           rowSelectionModel={selection}
           onRowSelectionModelChange={(ids) => {
             // 헤더 '전체 선택'을 눌러도 현재 페이지에 보이는 행만 선택
-            const onlyThisPage = ids.filter((id) => visiblePageIds.includes(id));
+            const onlyThisPage = ids.filter((id) =>
+              visiblePageIds.includes(id)
+            );
             setSelection(onlyThisPage);
           }}
           slots={{ toolbar: GridToolbar }}
@@ -304,7 +306,9 @@ export default function User() {
                 bgcolor: "var(--primary-50)",
               },
             },
-            "& .MuiButtonBase-root.MuiIconButton-root": { color: "var(--text)" },
+            "& .MuiButtonBase-root.MuiIconButton-root": {
+              color: "var(--text)",
+            },
             "& .MuiTablePagination-root": { color: "var(--text)" },
           }}
         />

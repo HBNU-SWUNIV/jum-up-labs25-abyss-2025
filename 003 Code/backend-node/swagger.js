@@ -2,7 +2,7 @@
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 
-
+// Swagger 설정 정의
 const options = {
   definition: {
     openapi: '3.0.0',
@@ -13,11 +13,11 @@ const options = {
     },
     servers: [
       {
-        url: 'https://port-0-fmds2-mgvyuurmef92981c.sel3.cloudtype.app', 
+        url: 'http://localhost:3000', // 배포 환경에 따라 변경해야함.
       },
     ],
   },
-  apis: ['./server.js'], 
+  apis: ['./server.js'], // API 주석을 읽을 파일 경로
 };
 
 const swaggerSpec = swaggerJsdoc(options);

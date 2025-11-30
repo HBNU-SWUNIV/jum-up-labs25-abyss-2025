@@ -1,0 +1,13 @@
+{
+  "name": "fmds-docker-analyzer",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "vm2": "^3.9.17",
+    "@babel/parser": "^7.22.15",
+    "@babel/traverse": "^7.22.11",
+    "@babel/generator": "^7.22.15",
+    "@babel/types": "^7.22.15"
+  }
+}

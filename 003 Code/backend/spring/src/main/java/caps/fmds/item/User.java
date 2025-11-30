@@ -25,14 +25,9 @@ public class User {
 
     private Boolean admin;
 
-    @Column(length = 50)
-    private String role;
-
-    @Column(length = 100)
-    private String email;
-
-    @Column(length = 30)
-    private String phone;
+    @ManyToOne
+    @JoinColumn(name = "group_id", nullable = false)
+    private UserGroup userGroup;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude

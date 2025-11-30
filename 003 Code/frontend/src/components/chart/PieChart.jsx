@@ -1,40 +1,63 @@
+// // src/components/chart/PieChart.jsx
+// import React from "react";
+// import { PieChart, Pie, Cell, Tooltip } from "recharts";
+
+// // const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#FF6666", "#AA99FF"];
+// const COLORS = ["#A4B465", "#c2d381", "#F0BB78", "#FFE99A",  "#eae0c6", "#7f915c"];
+
+
+// export default function DynamicPieChart({ data, width, height }) {
+//   return (
+//     <div style={{ width: '100%', height: '100%' }}>
+//       <PieChart width={width} height={height}>
+//         <Pie
+//           data={data}
+//           dataKey="value"
+//           nameKey="name"
+//           cx="50%"
+//           cy="50%"
+//           outerRadius={Math.min(width, height) / 2.5}
+//           fill="#8884d8"
+//           label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+//         >
+//           {data.map((_, index) => (
+//             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+//           ))}
+//         </Pie>
+//         <Tooltip />
+//       </PieChart>
+//     </div>
+//   );
+// }
+
+
+// src/components/chart/PieChart.jsx
 import React from "react";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
-// 다크/라이트 모두 잘 보이는 톤
-const COLORS = ["#A4B465", "#C2D381", "#F0BB78", "#FFE99A", "#EAE0C6", "#7F915C"];
-// const COLORS = ["#F7B267", "#B3CDAD", "#A6B6FF", "#FF9AA2"];
+// const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#FF6666", "#AA99FF"];
+const COLORS = ["#A4B465", "#c2d381", "#F0BB78", "#FFE99A",  "#eae0c6", "#7f915c"];
+
+
 export default function DynamicPieChart({ data, width, height }) {
-  if (!data || data.length === 0) return <p>데이터가 없습니다.</p>;
-
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <PieChart>
+    <ResponsiveContainer width={width} height={height}>
+      <PieChart width={width} height={height}>
         <Pie
           data={data}
           dataKey="value"
           nameKey="name"
           cx="50%"
           cy="50%"
-          outerRadius="75%" // 컨테이너 기준, 항상 중앙 안정
-          // paddingAngle={1.5}
-          label={({ name, percent }) =>
-            `${name} ${(percent * 100).toFixed(0)}%`
-          }
+          outerRadius={Math.min(width, height) / 2.5}
+          fill="#8884d8"
+          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
         >
-          {data.map((_, idx) => (
-            <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+          {data.map((_, index) => (
+            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
           ))}
         </Pie>
-        <Tooltip/>
-        <Legend />
+        <Tooltip />
       </PieChart>
     </ResponsiveContainer>
   );

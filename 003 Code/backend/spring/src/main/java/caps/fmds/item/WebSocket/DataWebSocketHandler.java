@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
-import org.springframework.web.socket.PingMessage;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
@@ -15,51 +14,31 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
 public class DataWebSocketHandler extends TextWebSocketHandler {
-
+    // JSON 문자열, Java 객체 간의 변환을 돕는 도구
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    // modelType을 키로, 해당 데이터를 구독한 WebSocket 세션들을 값으로 저장함 => 특정 모델 타입을 구독한 클라이언트 세션들이 이 안에 있는거임.
     private final Map<String, Set<WebSocketSession>> subscriptions = new ConcurrentHashMap<>();
 
-
-    private final Map<String, ScheduledFuture<?>> keepAlives = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-
+    // 웹소켓이 열릴 때
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         log.info("WebSocket 연결됨: {}", session.getId());
-
-
-        ScheduledFuture<?> f = scheduler.scheduleAtFixedRate(() -> {
-            try {
-                if (session.isOpen()) {
-                    session.sendMessage(new PingMessage(ByteBuffer.allocate(0)));
-                }
-            } catch (Exception e) {
-                log.warn("keepalive ping 실패: {}", session.getId(), e);
-            }
-        }, 25, 25, TimeUnit.SECONDS);
-        keepAlives.put(session.getId(), f);
     }
 
+    // 웹소켓이 닫힐 때
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        log.info("WebSocket 연결 종료: {} status={}", session.getId(), status);
+        log.info("WebSocket 연결 종료: {}", session.getId());
+        // 모든 모델타입에 있는 세션 목룍에서 이 세션을 제거함
         subscriptions.values().forEach(set -> set.remove(session));
-        ScheduledFuture<?> f = keepAlives.remove(session.getId());
-        if (f != null) f.cancel(true);
-    }
-
-
-    @Override
-    public void handleTransportError(WebSocketSession session, Throwable exception) {
-        log.warn("전송 오류: {} {}", session.getId(), exception.toString());
     }
 
     // 클라이언트가 웹소켓을 통해 메시지를 보냈을 때 호출되는 함수

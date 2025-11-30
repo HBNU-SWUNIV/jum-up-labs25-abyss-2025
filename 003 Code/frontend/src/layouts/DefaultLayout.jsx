@@ -1,3 +1,5 @@
+// FMDS_2.0/frontend/src/layouts/DefaultLayout.jsx
+
 import React from "react";
 import { Outlet } from "react-router-dom";
 

@@ -15,8 +15,4 @@ spring:
     properties:
       hibernate:
         format_sql: true
-app:
-  qr:
-    output-dir: ./qr-store       # QR PNG 저장 경로(상대 경로)
-    base-url: http://localhost:8080/qr  # 클라이언트가 접근할 URL prefix
 

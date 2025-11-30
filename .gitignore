@@ -1,0 +1,54 @@
+# ======================
+# OS / 환경 공통 무시 항목
+# ======================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+
+# ======================
+# Visual Studio Code 설정
+# ======================
+.vscode/
+.history/
+
+# ======================
+# Python 환경
+# ======================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+venv/
+ENV/
+env/
+pip-log.txt
+pyvenv.cfg
+
+# ======================
+# Node.js / Frontend
+# ======================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# ======================
+# 빌드 결과물 / 캐시
+# ======================
+dist/
+build/
+out/
+coverage/
+*.egg-info/
+
+# ======================
+# 기타 (프로젝트별)
+# ======================
+test_output/
+data/
+logs/

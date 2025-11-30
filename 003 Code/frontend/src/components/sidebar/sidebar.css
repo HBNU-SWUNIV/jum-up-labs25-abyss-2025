@@ -1,7 +1,6 @@
 /* FMDS_2.0/frontend/src/components/sidebar/sidebar.css */
 
 .sidebar {
-  flex-shrink: 0; /* 사이드바 폭 고정 */
   width: 240px;
   min-width: 200px;
   max-width: 280px;

@@ -1,5 +1,5 @@
 // frontend\src\pages\Dashboard\Dashboard.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -20,7 +20,33 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
+
 const userId = 54;
+
+// memoized WidgetContent with logging
+const WidgetContent = React.memo(
+  function WidgetContent({
+    widgetInfo,
+    widgetId,
+    item,
+    renderChart,
+    reloadKey,
+  }) {
+    if (!widgetInfo) {
+      return <div className="widget-label">+ 더블클릭하여 컴포넌트 추가</div>;
+    }
+    return (
+      <div className="widget-content">
+        {renderChart(widgetInfo, widgetId, item, reloadKey)}
+      </div>
+    );
+  },
+  (prev, next) =>
+    prev.widgetInfo === next.widgetInfo &&
+    prev.widgetId === next.widgetId &&
+    prev.item === next.item &&
+    prev.reloadKey === next.reloadKey
+);
 
 export default function Dashboard() {
   const [layout, setLayout] = useState([]);
@@ -40,58 +66,128 @@ export default function Dashboard() {
   const [selectedChartType, setSelectedChartType] = useState(null);
   const [highlightedWidgetId, setHighlightedWidgetId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
   const wsRef = useRef(null);
   const pendingSubsRef = useRef([]);
+  // — WebSocket reconnect helpers —
+  const reconnectTimerRef = useRef(null);
+  const reconnectAttemptsRef = useRef(0);
+  const pendingModelUpdatesRef = useRef(new Set());
+  const skipLayoutChangeRef = useRef(false);
+
+  const fetchFileData = useCallback(async (fileName) => {
+    if (!fileName) return;
+    try {
+      const encoded = encodeURIComponent(fileName);
+      const res = await axios.get(
+        ``
+      );
+      const raw = res.data;
+      if (!Array.isArray(raw) || raw.length === 0) return;
+
+      const sample = raw[0];
+      const data = sample.fields ? raw.map((r) => r.fields) : raw;
+      const headers = Object.keys(data[0]);
+      const rows = data.map((item) => headers.map((h) => item[h]));
+
+      setTableData((prev) => ({
+        ...prev,
+        [fileName]: [headers, ...rows],
+      }));
+    } catch (error) {
+      console.error("파일 데이터 불러오기 실패:", error);
+    }
+  }, []);
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8080/ws/data");
-    wsRef.current = ws;
+    let destroyed = false;
+    const CONNECT_URL =
+      "";
 
-    ws.onopen = () => {
-      try {
-        pendingSubsRef.current.forEach((msg) => ws.send(msg));
-        pendingSubsRef.current = [];
-      } catch (e) {
-        console.error("WS flush error:", e);
-      }
-    };
+    const connect = () => {
+      if (destroyed) return;
+      const ws = new WebSocket(CONNECT_URL);
+      wsRef.current = ws;
 
-    // 서버에서 실시간 데이터 업데이트 수신 처리
-    // { ㅇ예시 메세지 
-    //   "type": "update",
-    //   "modelType": "sales_data.csv",
-    //   "data": [
-    //     ["Month", "Revenue"],
-    //     ["Jan", 120],
-    //     ["Feb", 200]
-    //   ]
-    // }
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-
-        if (msg.type === "update" && msg.modelType && Array.isArray(msg.data)) {
-          console.log("📡 실시간 데이터 업데이트 수신:", msg.modelType, msg.data);
-          setTableData((prev) => ({
-            ...prev,
-            [msg.modelType]: msg.data,
-          }));
+      ws.onopen = () => {
+        console.log("✅ WebSocket connected:", CONNECT_URL);
+        // 기본 구독(필요시 더 추가 가능)
+        try {
+          ws.send(
+            JSON.stringify({ type: "subscribe", modelType: "pose_events" })
+          );
+        } catch (e) {
+          console.error("WS subscribe error:", e);
         }
-      } catch (err) {
-        console.error("⚠️ WebSocket 메시지 파싱 실패:", err, event.data);
-      }
+      };
+
+      // ⬇️ 여기 onmessage는 위 '패치 1' 코드로
+      ws.onmessage = (event) => {
+        try {
+          const text = typeof event.data === "string" ? event.data : "";
+          const msg = text ? JSON.parse(text) : {};
+
+          const isUpdate =
+            (msg && msg.type === "update") || (msg && msg.event === "update");
+
+          if (!isUpdate || !msg.modelType) {
+            console.debug("WS non-update or no modelType:", event.data);
+            return;
+          }
+
+          // ----------------------------------
+          // 1) pose_events 업데이트 처리 (Home 방식 동일)
+          // ----------------------------------
+          if (msg.modelType === "pose_events") {
+            console.log("[Dashboard WS] pose_events update:", msg);
+
+            // 🔥 pose 이벤트 들어오면 100ms에 최대 1번만 reloadTrigger 증가
+            if (!ws._poseTickTimer) {
+              ws._poseTickTimer = setTimeout(() => {
+                setReloadTrigger((n) => n + 1);
+                ws._poseTickTimer = null;
+              }, 100);
+            }
+
+            // 어느 위젯이 pose인지 판단할 때 사용
+            pendingModelUpdatesRef.current.add("pose_events");
+          }
+
+          // ----------------------------------
+          // 2) 데이터가 배열로 왔을 때만 table 캐시 변경
+          // ----------------------------------
+          if (Array.isArray(msg.data)) {
+            setTableData((prev) => ({
+              ...prev,
+              [msg.modelType]: msg.data,
+            }));
+          }
+        } catch (err) {
+          console.error("⚠️ WS message parse error:", err, event.data);
+        }
+      };
+
+      ws.onerror = (e) => console.error("WebSocket error:", e);
+      ws.onclose = (e) => {
+        wsRef.current = null;
+        if (destroyed) return;
+        console.warn(
+          `⚠️ WebSocket closed: code=${e.code}, reason=${e.reason || "(none)"}`
+        );
+        setTimeout(connect, 3000); // 재연결
+      };
     };
 
-    ws.onerror = (e) => {
-      console.error("WebSocket error:", e);
-    };
-
+    connect();
     return () => {
-      try { ws.close(); } catch (_) {}
+      destroyed = true;
+      try {
+        wsRef.current?.close();
+      } catch {}
       wsRef.current = null;
     };
-  }, []);
+  }, []); // ✅ 의존성 없음: 한 번만 연결
 
   const subscribeModelTypes = (fileNames = []) => {
     const unique = Array.from(new Set(fileNames.filter(Boolean)));
@@ -117,14 +213,22 @@ export default function Dashboard() {
     const fetchAllData = async () => {
       try {
         const [filesRes, templatesRes, pluginsRes] = await Promise.all([
-          axios.get),
-          axios.get(),
-          axios.get(),
+          axios.get(
+            ""
+          ),
+          axios.get(
+            ``
+          ),
+          axios.get(
+            ""
+          ),
         ]);
 
         setTables(filesRes.data || []);
         await Promise.all((filesRes.data || []).map(fetchFileData));
-        await Promise.all((templatesRes.data || []).map((t) => fetchTemplatesFromServer(t.id)));
+        await Promise.all(
+          (templatesRes.data || []).map((t) => fetchTemplatesFromServer(t.id))
+        );
         setPluginChartTypes(pluginsRes.data || []);
       } catch (error) {
         console.error("데이터 불러오기 실패:", error);
@@ -135,7 +239,9 @@ export default function Dashboard() {
 
     const fetchUploadedFileNames = async () => {
       try {
-        const res = await axios.get();
+        const res = await axios.get(
+          ""
+        );
         if (Array.isArray(res.data)) setTables(res.data);
         res.data.forEach((fileName) => fetchFileData(fileName));
       } catch (err) {
@@ -146,6 +252,7 @@ export default function Dashboard() {
     const fetchAllTemplates = async () => {
       try {
         const res = await axios.get(
+          ``
         );
         res.data.forEach((template) => fetchTemplatesFromServer(template.id));
       } catch (err) {
@@ -155,7 +262,9 @@ export default function Dashboard() {
 
     const fetchPluginChartTypes = async () => {
       try {
-        const res = await axios.get();
+        const res = await axios.get(
+          ""
+        );
         setPluginChartTypes(res.data.map((item) => item));
       } catch (err) {
         console.error("플러그인 인스턴스 목록 불러오기 실패:", err);
@@ -168,31 +277,17 @@ export default function Dashboard() {
     fetchAllData();
   }, []);
 
-  const fetchFileData = async (fileName) => {
-    try {
-      const encoded = encodeURIComponent(fileName);
-      const res = await axios.get(
-      );
-      const raw = res.data;
-      if (!Array.isArray(raw) || raw.length === 0) return;
-
-      const sample = raw[0];
-      const data = sample.fields ? raw.map((r) => r.fields) : raw;
-      const headers = Object.keys(data[0]);
-      const rows = data.map((item) => headers.map((h) => item[h]));
-
-      setTableData((prev) => ({
-        ...prev,
-        [fileName]: [headers, ...rows],
-      }));
-    } catch (error) {
-      console.error("파일 데이터 불러오기 실패:", error);
-    }
-  };
+  useEffect(() => {
+    if (pendingModelUpdatesRef.current.size === 0) return;
+    const targets = Array.from(pendingModelUpdatesRef.current);
+    pendingModelUpdatesRef.current.clear();
+    targets.forEach((modelType) => fetchFileData(modelType));
+  }, [reloadTrigger, fetchFileData]);
 
   const fetchTemplatesFromServer = async (templateId) => {
     try {
       const res = await axios.get(
+        ``
       );
       const components = res.data.customs;
       if (!Array.isArray(components)) return;
@@ -227,7 +322,7 @@ export default function Dashboard() {
         },
       }));
     } catch (err) {
-      console.error("서버에서 템플릿 불러오기 실패:", err);
+      // console.error("서버에서 템플릿 불러오기 실패:", err);
     }
   };
 
@@ -244,7 +339,10 @@ export default function Dashboard() {
     if (!selectedWidget || !selectedChartType) return;
 
     const header = tableData[fileName]?.[0] || [];
-    if (selectedChartType === "Pie Chart" || selectedChartType === "Live Chart") {
+    if (
+      selectedChartType === "Pie Chart" ||
+      selectedChartType === "Live Chart"
+    ) {
       setAvailableKeys(header.slice(1));
       return;
     }
@@ -267,7 +365,9 @@ export default function Dashboard() {
     if (!selectedWidget) return;
     setSelectedChartType(chartType);
 
-    const isPluginChart = pluginChartTypes.some((plugin) => plugin._id === chartType);
+    const isPluginChart = pluginChartTypes.some(
+      (plugin) => plugin._id === chartType
+    );
     if (isPluginChart) {
       setWidgets({ ...widgets, [selectedWidget]: { chart: chartType } });
       setSelectedWidget(null);
@@ -304,76 +404,87 @@ export default function Dashboard() {
     setShowDataSelection(false);
   };
 
-  function PluginChartRenderer({ pluginInstance, widgetSize }) {
-    const [Plugincode, setPluginCode] = useState("");
-    const [pluginData, setPluginData] = useState([]);
-    const [pluginOptions, setPluginOptions] = useState({});
+  // ✅ PluginChartRenderer 수정 (forwardRef 사용)
+  const PluginChartRenderer = React.forwardRef(
+    ({ pluginInstance, widgetSize }, ref) => {
+      const [Plugincode, setPluginCode] = useState("");
+      const [pluginData, setPluginData] = useState([]);
+      const [pluginOptions, setPluginOptions] = useState({});
+      const [forceKey, setForceKey] = useState(0);
 
-    useEffect(() => {
-      if (!pluginInstance) return;
-      let alive = true;
-
+      // 🔹 loadPlugin 함수 정의
       const loadPlugin = async () => {
+        if (!pluginInstance) return;
         try {
           const instanceId = pluginInstance._id;
           const pluginTypeId = pluginInstance.typeId;
 
+          // 1. 렌더러 코드 요청
           const res1 = await axios.get(
+            ``
           );
-          if (!alive) return;
           setPluginCode(res1.data.rendererCode);
 
+          // 2. 데이터 요청
           const res2 = await axios.post(
+            ``,
             {}
           );
           const rawData = res2.data || [];
           let processedData = [];
 
           if (rawData.length > 0) {
-          // 첫 번째 데이터 아이템에 'fields' 속성이 정의되어 있는지 확인
             if (rawData[0].fields !== undefined) {
-            // Case 1: 엑셀 데이터 (기존 로직)
               processedData = rawData.map((item) => item.fields);
             } else {
-            // Case 2: 스켈레톤 데이터 (원본 데이터 그대로 사용)
               processedData = rawData;
             }
-         }
-          if (!alive) return;
+          }
           setPluginData(processedData);
 
+          // 3. 옵션 요청
           const res3 = await axios.get(
+            ``
           );
-          if (!alive) return;
           setPluginOptions(res3.data.options);
+
+          console.log("📊 pose_events 데이터 새로 로드 완료");
+          setForceKey(Date.now());
         } catch (e) {
           console.error("플러그인 로드 실패:", e);
         }
       };
 
-      loadPlugin();
-      return () => { alive = false; };
-    }, [pluginInstance]);
+      // 초기 로드
+      useEffect(() => {
+        loadPlugin();
+      }, [pluginInstance]);
 
-    // ✅ 범례/상하 여백 보정으로 실제 캔버스 높이 조절
-    const chartPaddingY = 32;
-    const width = widgetSize.w * 100;
-    const height = widgetSize.h * 50 - chartPaddingY;
+      // 🔹 부모(Dashboard)에서 reload() 호출 가능하도록 연결
+      React.useImperativeHandle(ref, () => ({
+        reload: loadPlugin,
+      }));
 
-    return (
-      <div className="chart-host">
-        {Plugincode && (
-          <PluginRenderer
-            code={Plugincode}
-            data={pluginData}
-            options={pluginOptions}
-            width={width}
-            height={height}
-          />
-        )}
-      </div>
-    );
-  }
+      const chartPaddingY = 32;
+      const width = widgetSize.w * 100;
+      const height = widgetSize.h * 50 - chartPaddingY;
+
+      return (
+        <div className="chart-host">
+          {Plugincode && (
+            <PluginRenderer
+              key={`${pluginInstance._id}-${forceKey}-${Plugincode.length}`}
+              code={Plugincode}
+              data={pluginData}
+              options={pluginOptions}
+              width={width}
+              height={height}
+            />
+          )}
+        </div>
+      );
+    }
+  );
 
   // 카메라 영상 스트리밍
   function CameraStream({ widgetSize }) {
@@ -381,7 +492,7 @@ export default function Dashboard() {
     const wsRef = React.useRef(null);
 
     React.useEffect(() => {
-      const ws = new WebSocket("ws://localhost:8000/ws");
+      const ws = new WebSocket("");
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
@@ -415,7 +526,9 @@ export default function Dashboard() {
 
       return () => {
         destroyed = true;
-        try { ws.close(); } catch (_) {}
+        try {
+          ws.close();
+        } catch (_) {}
       };
     }, []);
 
@@ -434,15 +547,40 @@ export default function Dashboard() {
       </div>
     );
   }
+  // 플러그인 위젯별 ref 보관
+  const pluginChartRefs = useRef({});
 
-  const renderChart = (widgetInfo, widgetSize) => {
+  const renderChart = (widgetInfo, widgetId, widgetSize) => {
     if (!widgetInfo || !widgetInfo.chart) return null;
 
-    // 플러그인 차트
-    const isPluginChart = pluginChartTypes.some((plugin) => plugin._id === widgetInfo.chart);
+    // 플러그인 차트 (_id / modelType / typeId 모두 매칭 지원)
+    const isPluginChart = pluginChartTypes.some(
+      (plugin) =>
+        plugin._id === widgetInfo.chart ||
+        plugin.modelType === widgetInfo.chart ||
+        plugin.typeId === widgetInfo.chart
+    );
     if (isPluginChart) {
-      const pluginInstance = pluginChartTypes.find((plugin) => plugin._id === widgetInfo.chart);
-      return <PluginChartRenderer pluginInstance={pluginInstance} widgetSize={widgetSize} />;
+      const pluginInstance = pluginChartTypes.find(
+        (plugin) =>
+          plugin._id === widgetInfo.chart ||
+          plugin.modelType === widgetInfo.chart ||
+          plugin.typeId === widgetInfo.chart
+      );
+
+      // 위젯별 개별 ref 생성/보관
+      if (!pluginChartRefs.current[widgetId]) {
+        pluginChartRefs.current[widgetId] = React.createRef();
+      }
+
+      return (
+        <PluginChartRenderer
+          key={widgetId}
+          ref={pluginChartRefs.current[widgetId]}
+          pluginInstance={pluginInstance}
+          widgetSize={widgetSize}
+        />
+      );
     }
 
     // 카메라
@@ -465,7 +603,8 @@ export default function Dashboard() {
 
     const parsedData = rows.map((row) => {
       const obj = { name: row[0] };
-      for (let i = 1; i < header.length; i++) obj[header[i]] = Number(row[i]) || 0;
+      for (let i = 1; i < header.length; i++)
+        obj[header[i]] = Number(row[i]) || 0;
       return obj;
     });
 
@@ -474,7 +613,10 @@ export default function Dashboard() {
     switch (widgetInfo.chart) {
       case "Pie Chart": {
         const key = widgetInfo.key || header[1];
-        const pieData = parsedData.map((row) => ({ name: row.name, value: row[key] || 0 }));
+        const pieData = parsedData.map((row) => ({
+          name: row.name,
+          value: row[key] || 0,
+        }));
         return (
           <div className="chart-host">
             <DynamicPieChart data={pieData} width={width} height={height} />
@@ -500,7 +642,11 @@ export default function Dashboard() {
           </div>
         );
       case "Table": {
-        const columns = header.map((h) => ({ field: h, headerName: h, flex: 1 }));
+        const columns = header.map((h) => ({
+          field: h,
+          headerName: h,
+          flex: 1,
+        }));
         const gridRows = rows.map((row, i) => {
           const obj = { id: i + 1 };
           header.forEach((h, j) => (obj[h] = row[j] || ""));
@@ -557,6 +703,7 @@ export default function Dashboard() {
 
     try {
       const res = await axios.post(
+        "",
         { name, userId }
       );
       const templateId = res.data.id;
@@ -601,6 +748,7 @@ export default function Dashboard() {
 
     try {
       await axios.post(
+        "",
         payload
       );
       const usedFiles = Object.values(widgets).map((w) => w?.file);
@@ -623,11 +771,14 @@ export default function Dashboard() {
 
   const handleDeleteTemplate = async () => {
     if (!currentTemplateName || !currentTemplateId) return;
-    const confirmDelete = window.confirm(`${currentTemplateName} 템플릿을 삭제하시겠습니까?`);
+    const confirmDelete = window.confirm(
+      `${currentTemplateName} 템플릿을 삭제하시겠습니까?`
+    );
     if (!confirmDelete) return;
 
     try {
       await axios.delete(
+        ``
       );
       const updated = { ...templates };
       delete updated[currentTemplateName];
@@ -650,14 +801,23 @@ export default function Dashboard() {
     setWidgets(template.widgets);
     setCurrentTemplateName(name);
     setCurrentTemplateId(template.id);
-    const maxId = template.layout.reduce((max, item) => Math.max(max, parseInt(item.i)), 0);
+    const maxId = template.layout.reduce(
+      (max, item) => Math.max(max, parseInt(item.i)),
+      0
+    );
     setCounter(maxId + 1);
   };
 
   const isCursorOverTrash = (clientX, clientY) => {
     const trash = document.querySelector(".deleteIcon");
     const rect = trash?.getBoundingClientRect();
-    return rect && clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+    return (
+      rect &&
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    );
   };
 
   if (loading) return <p>데이터 로딩 중...</p>;
@@ -673,7 +833,9 @@ export default function Dashboard() {
         <button onClick={handleAddComponent}>+ Component</button>
         <button onClick={handleSaveTemplate}>Save</button>
         <button onClick={handleDeleteTemplate}>Delete</button>
-        <button className="btn-new-template" onClick={handleNewTemplate}>+ New Template</button>
+        <button className="btn-new-template" onClick={handleNewTemplate}>
+          + New Template
+        </button>
       </div>
 
       <div className="template-list">
@@ -681,14 +843,19 @@ export default function Dashboard() {
           <button
             key={name}
             onClick={() => loadTemplate(name)}
-            className={`template-chip ${name === currentTemplateName ? "active-template" : ""}`}
+            className={`template-chip ${
+              name === currentTemplateName ? "active-template" : ""
+            }`}
           >
             {name}
           </button>
         ))}
       </div>
 
-      <DeleteIcon className="deleteIcon" onDragOver={(e) => e.preventDefault()} />
+      <DeleteIcon
+        className="deleteIcon"
+        onDragOver={(e) => e.preventDefault()}
+      />
 
       <ResponsiveGridLayout
         className="layout"
@@ -697,13 +864,19 @@ export default function Dashboard() {
         cols={{ lg: 12, md: 12, sm: 6, xs: 4 }}
         rowHeight={50}
         onLayoutChange={(newLayout) => {
-          if (JSON.stringify(newLayout) !== JSON.stringify(layout)) setLayout(newLayout);
+          if (skipLayoutChangeRef.current) {
+            skipLayoutChangeRef.current = false;
+            return;
+          }
+          if (JSON.stringify(newLayout) !== JSON.stringify(layout))
+            setLayout(newLayout);
         }}
         isDraggable
         isResizable
         onDrag={(layout, oldItem, _n, _p, e) => {
           const widgetId = oldItem.i;
-          if (isCursorOverTrash(e.clientX, e.clientY)) setHighlightedWidgetId(widgetId);
+          if (isCursorOverTrash(e.clientX, e.clientY))
+            setHighlightedWidgetId(widgetId);
           else setHighlightedWidgetId(null);
         }}
         onDragStop={(layout, oldItem, _newItem, _placeholder, e) => {
@@ -713,9 +886,12 @@ export default function Dashboard() {
             if (window.confirm("컴포넌트를 삭제하시겠습니까?")) {
               const removedFile = widgets[widgetId]?.file || null;
               const stillUsedByOthers = removedFile
-                ? Object.entries(widgets).some(([id, w]) => id !== widgetId && w?.file === removedFile)
+                ? Object.entries(widgets).some(
+                    ([id, w]) => id !== widgetId && w?.file === removedFile
+                  )
                 : false;
 
+              skipLayoutChangeRef.current = true;
               setLayout((prev) => prev.filter((item) => item.i !== widgetId));
               setWidgets((prev) => {
                 const newWidgets = { ...prev };
@@ -730,27 +906,53 @@ export default function Dashboard() {
           }
         }}
       >
-        {layout.map((item) => (
-          <div
-            key={item.i}
-            className={`widget ${highlightedWidgetId === item.i ? "drag-to-trash" : ""}`}
-            onDoubleClick={() => {
-              setSelectedWidget(item.i);
-              const widget = widgets[item.i];
-              if (widget?.chart) setSelectedChartType(widget.chart);
-              setShowChartType(true);
-              setShowDataSelection(false);
-            }}
-          >
-            {widgets[item.i] ? (
-              <div className="widget-content">
-                {renderChart(widgets[item.i], item)}
-              </div>
-            ) : (
-              <div className="widget-label">+ 더블클릭하여 컴포넌트 추가</div>
-            )}
-          </div>
-        ))}
+        {layout.map((item) => {
+          const widget = widgets[item.i];
+          let isPoseWidget = false;
+
+          if (widget && widget.chart) {
+            const pluginInstance = pluginChartTypes.find(
+              (plugin) =>
+                plugin._id === widget.chart ||
+                plugin.modelType === widget.chart ||
+                plugin.typeId === widget.chart
+            );
+
+            if (pluginInstance && pluginInstance.modelType === "pose_events") {
+              isPoseWidget = true;
+            }
+
+            if (widget.file === "pose_events") {
+              isPoseWidget = true;
+            }
+          }
+
+          const reloadKey = isPoseWidget ? reloadTrigger : 0;
+
+          return (
+            <div
+              key={item.i}
+              className={`widget ${
+                highlightedWidgetId === item.i ? "drag-to-trash" : ""
+              }`}
+              onDoubleClick={() => {
+                setSelectedWidget(item.i);
+                const widget = widgets[item.i];
+                if (widget?.chart) setSelectedChartType(widget.chart);
+                setShowChartType(true);
+                setShowDataSelection(false);
+              }}
+            >
+              <WidgetContent
+                widgetInfo={widget}
+                widgetId={item.i}
+                item={item}
+                renderChart={renderChart}
+                reloadKey={reloadKey}
+              />
+            </div>
+          );
+        })}
       </ResponsiveGridLayout>
 
       {selectedWidget && showDataSelection && (
@@ -767,12 +969,25 @@ export default function Dashboard() {
               ×
             </button>
           </div>
-          <Box sx={{ width: "100%", height: 300, maxWidth: 400, margin: "0 auto" }}>
-            <FixedSizeList height={300} width={400} itemSize={48} itemCount={tables.length} overscanCount={3}>
+          <Box
+            sx={{ width: "100%", height: 300, maxWidth: 400, margin: "0 auto" }}
+          >
+            <FixedSizeList
+              height={300}
+              width={400}
+              itemSize={48}
+              itemCount={tables.length}
+              overscanCount={3}
+            >
               {({ index, style }) => {
                 const table = tables[index];
                 return (
-                  <ListItem style={style} key={table} component="div" disablePadding>
+                  <ListItem
+                    style={style}
+                    key={table}
+                    component="div"
+                    disablePadding
+                  >
                     <ListItemButton onClick={() => handleSelectData(table)}>
                       <ListItemText primary={table} />
                     </ListItemButton>
@@ -800,7 +1015,9 @@ export default function Dashboard() {
               ×
             </button>
           </div>
-          <Box sx={{ width: "100%", height: 300, maxWidth: 400, margin: "0 auto" }}>
+          <Box
+            sx={{ width: "100%", height: 300, maxWidth: 400, margin: "0 auto" }}
+          >
             <FixedSizeList
               height={300}
               width={400}
@@ -809,13 +1026,30 @@ export default function Dashboard() {
               overscanCount={3}
             >
               {({ index, style }) => {
-                const chartTypes = ["Pie Chart", "Area Chart", "Bar Chart", "Line Chart", "Table", "Camera"];
-                const fullList = [...chartTypes, ...pluginChartTypes.map((p) => p._id)];
+                const chartTypes = [
+                  "Pie Chart",
+                  "Area Chart",
+                  "Bar Chart",
+                  "Line Chart",
+                  "Table",
+                  "Camera",
+                ];
+                const fullList = [
+                  ...chartTypes,
+                  ...pluginChartTypes.map((p) => p._id),
+                ];
                 const chart = fullList[index];
 
                 return (
-                  <ListItem style={style} key={chart} component="div" disablePadding>
-                    <ListItemButton onClick={() => handleSelectChartType(chart)}>
+                  <ListItem
+                    style={style}
+                    key={chart}
+                    component="div"
+                    disablePadding
+                  >
+                    <ListItemButton
+                      onClick={() => handleSelectChartType(chart)}
+                    >
                       <ListItemText primary={chart} />
                     </ListItemButton>
                   </ListItem>
@@ -843,7 +1077,11 @@ export default function Dashboard() {
             </button>
           </div>
           {availableKeys.map((key) => (
-            <button key={key} className="dataSelectionBtn" onClick={() => handleKeySelect(key)}>
+            <button
+              key={key}
+              className="dataSelectionBtn"
+              onClick={() => handleKeySelect(key)}
+            >
               {key}
             </button>
           ))}

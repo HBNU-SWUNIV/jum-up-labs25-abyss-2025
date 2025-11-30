@@ -1,4 +1,3 @@
-/* frontend\src\pages\Dashboard\dashboard.css */
 .dashboard {
   flex: 5;
   padding: 20px;
@@ -43,29 +42,35 @@
   background: var(--surface-2);
   color: var(--text);
 }
-.template-controls button:hover { background: var(--primary-50); }
+.template-controls button:hover {
+  background: var(--primary-50);
+}
 
-/* 새 템플릿 버튼 */
+/* 새 템플릿 버튼만 프라이머리 */
 .template-controls .btn-new-template,
-.template-controls button:nth-child(4) {
+.template-controls button:nth-child(4) { /* 레거시 호환 */
   background: var(--primary);
   color: #fff;
   border-color: transparent;
 }
 .template-controls .btn-new-template:hover,
-.template-controls button:nth-child(4):hover {
+.template-controls button:nth-child(4):hover { /* 레거시 호환 */
   filter: brightness(0.95);
 }
 
 /* ===============================
-   템플릿 목록(칩 버튼)
+   템플릿 목록(칩 버튼) — 구조 의존 제거
    =============================== */
+
+/* 1) 목록 컨테이너 */
 .template-list {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 16px;
 }
+
+/* 2) 항목(칩) — button, a, span 모두 대응 */
 .template-list .template-chip,
 .template-list button,
 .template-list a,
@@ -82,15 +87,20 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  text-decoration: none;
+  text-decoration: none; /* a 대응 */
   font-weight: 700;
+  /* 텍스트만 나와도 버튼처럼 보이도록 */
 }
+
+/* hover */
 .template-list .template-chip:hover,
 .template-list button:hover,
 .template-list a:hover,
 .template-list span:hover {
   background: var(--primary-50);
 }
+
+/* 활성 템플릿 칩 */
 .template-list .active-template,
 .active-template {
   background: var(--primary) !important;
@@ -99,7 +109,7 @@
   border-color: transparent !important;
 }
 
-/* 레거시 Fallback */
+/* ===== 레거시(Fallback): 기존 nth-child 구조 유지 시에도 동작하도록 ===== */
 .dashboard > div:nth-child(4) {
   display: flex;
   flex-wrap: wrap;
@@ -117,7 +127,9 @@
   transition: background-color .2s ease;
   font-weight: 700;
 }
-.dashboard > div:nth-child(4) button:hover { background: var(--primary-50); }
+.dashboard > div:nth-child(4) button:hover {
+  background: var(--primary-50);
+}
 
 /* Layout 영역 */
 .layout {
@@ -138,8 +150,6 @@
   font-weight: 700;
   overflow: hidden;
   cursor: move;
-  position: relative;
-  transition: border-color .2s ease, background-color .2s ease;
 }
 
 /* 위젯 내용 박스(차트/표) */
@@ -149,53 +159,6 @@
   background: var(--surface);
   border-radius: 10px;
   overflow: hidden;
-
-  /* ✅ 차트를 카드의 정중앙으로 */
-  display: flex;
-  align-items: center;       /* 세로 중앙 */
-  justify-content: center;   /* 가로 중앙 */
-  padding: 8px 12px;         /* 가장자리 숨쉬기 */
-}
-
-/* 휴지통 위로 드래그 중인 위젯 */
-.widget.drag-to-trash{
-  border: 2px dashed var(--danger);
-  background: color-mix(in oklab, var(--danger) 8%, transparent);
-}
-.widget.drag-to-trash .widget-content{
-  filter: grayscale(100%) brightness(0.85);
-  opacity: 0.6;
-  transition: filter .15s ease, opacity .15s ease;
-  pointer-events: none;
-}
-/* 중앙 안내 오버레이 */
-.widget.drag-to-trash::after{
-  content: "휴지통으로 삭제";
-  position: absolute;
-  left: 50%; top: 50%;
-  transform: translate(-50%, -50%);
-  padding: 6px 10px;
-  border-radius: 8px;
-  background: var(--danger);
-  color: #fff;
-  font-weight: 800;
-  font-size: 12px;
-  letter-spacing: .2px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.25);
-}
-
-/* 차트를 감싸는 공통 호스트 — 중앙 정렬 안전장치 */
-.chart-host {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;       /* 세로 중앙 */
-  justify-content: center;   /* 가로 중앙 */
-}
-.chart-host .recharts-responsive-container,
-.chart-host .recharts-wrapper {
-  margin: 0 auto !important;
-  display: block;
 }
 
 /* 위젯에 아무 것도 없을 때 */
@@ -210,7 +173,9 @@
   place-items: center;
   cursor: pointer;
 }
-.widget-label:hover { background: var(--primary-50); }
+.widget-label:hover {
+  background: var(--primary-50);
+}
 
 /* 모달 공통 스타일 */
 .data-selection {
@@ -227,18 +192,21 @@
   min-width: 300px;
   border-radius: 12px;
 }
+
 .data-selection-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
 }
+
 .data-selection-header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 800;
   color: var(--text);
 }
+
 .closeBtn {
   background: none;
   border: none;
@@ -247,7 +215,7 @@
   color: var(--text);
 }
 
-/* 모달 안 선택 버튼들 */
+/* 모달 안 선택 버튼들(키 선택 등) */
 .dataSelectionBtn {
   display: block;
   width: 100%;
@@ -261,7 +229,9 @@
   text-align: center;
   transition: background-color .2s ease;
 }
-.dataSelectionBtn:hover { background: var(--primary-50); }
+.dataSelectionBtn:hover {
+  background: var(--primary-50);
+}
 
 .deleteIcon {
   color: var(--text-muted);
@@ -277,7 +247,7 @@
   .template-list button,
   .template-list a,
   .template-list span,
-  .dashboard > div:nth-child(4) button {
+  .dashboard > div:nth-child(4) button { /* 레거시 */
     font-size: 12px;
     padding: 6px 10px;
   }

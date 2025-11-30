@@ -1,51 +1,43 @@
-// src/components/topbar/Topbar.jsx
+// FMDS_2.0/frontend/src/components/topbar/Topbar.jsx
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./topbar.css";
-
-// MUI Icons
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonIcon from "@mui/icons-material/Person";
-
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "hooks/useAuth";
 import ThemeToggle from "components/ThemeToggle";
 
-// ⬇️ 로고 이미지
+// ⬇️ 로고 추가
 import LogoFmds from "assets/logo.svg";
 
-// 별도 메뉴 컴포넌트
-import NotificationMenu from "./NotificationMenu";
-import UserMenu from "./UserMenu";
-
 /**
- * Topbar
- * - 로고, 알림, 다크모드, 사용자 메뉴를 포함하는 상단 네비게이션 바
+ * Topbar: 로고 + 알림 + 사용자 드롭다운 + 다크모드 토글
  */
 export default function Topbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 상태 관리: 알림/사용자 메뉴 열림 여부
+  // 알림/메뉴 패널 토글 상태
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
 
-  // 임시 알림 데이터 (추후 WebSocket 연동 예정)
+  // 임시 알림 데이터
   const [notifs, setNotifs] = useState([
-    { id: 1, text: "101호 환자 낙상 감지 🚨", ts: "2분 전", unread: true },
-    { id: 2, text: "202호 환자 심박수 이상 ⚠️", ts: "10분 전", unread: true },
+    { id: 1, text: "대시보드 템플릿이 저장되었습니다.", ts: "방금 전", unread: true },
+    { id: 2, text: "새 플러그인(LineChart2) 등록 완료.", ts: "1시간 전", unread: true },
     { id: 3, text: "시스템 점검 예정 23:00 ~ 24:00", ts: "어제", unread: false },
   ]);
 
-  // 읽지 않은 알림 개수
   const unreadCount = useMemo(
     () => notifs.filter((n) => n.unread).length,
     [notifs]
   );
 
-  // 외부 클릭/ESC 키 입력 시 패널 닫기
+  // 외부 클릭 닫힘
   const rightRef = useRef(null);
   useEffect(() => {
     const onClick = (e) => {
@@ -69,11 +61,10 @@ export default function Topbar() {
     };
   }, []);
 
-  // 모든 알림 읽음 처리
   const markAllRead = () =>
     setNotifs((prev) => prev.map((n) => ({ ...n, unread: false })));
 
-  // 사용자 이름 → 이니셜 생성
+  // 이니셜 생성
   const initials = useMemo(() => {
     const name = (user?.name || "User").trim();
     const parts = name.split(/\s+/);
@@ -82,7 +73,6 @@ export default function Topbar() {
     return (first + last).toUpperCase();
   }, [user]);
 
-  // 로그아웃 처리
   const handleLogout = () => {
     logout();
     navigate("/login", { replace: true, state: { from: location } });
@@ -91,16 +81,16 @@ export default function Topbar() {
   return (
     <header className="topbar" role="banner">
       <div className="topbarWrapper">
-        {/* 좌측 로고 */}
+        {/* ⬇️ 좌측 로고 (이미지) */}
         <div className="topLeft">
           <Link to="/home" className="brandLogo" aria-label="Go to Home">
             <img src={LogoFmds} alt="FMDS" className="logoImg" />
+            {/* <span className="logoText">FMDS</span> */}
           </Link>
         </div>
 
-        {/* 우측 영역 */}
         <div className="topRight" ref={rightRef}>
-          {/* 알림 아이콘 */}
+          {/* 알림 */}
           <button
             className="topbarIconContainer"
             aria-label="Notifications"
@@ -118,13 +108,29 @@ export default function Topbar() {
 
           {/* 알림 패널 */}
           {notifOpen && (
-            <NotificationMenu
-              notifications={notifs}
-              onMarkAllRead={markAllRead}
-            />
+            <div id="notif-panel" className="popup" style={{ right: 88 }}>
+              <div className="notifHeader">
+                <span>알림</span>
+                <button className="menuItem" onClick={markAllRead}>
+                  모두 읽음 처리
+                </button>
+              </div>
+              <div className="notifList" role="list">
+                {notifs.length === 0 && <div className="notifEmpty">알림이 없습니다.</div>}
+                {notifs.map((n) => (
+                  <div key={n.id} className="notifItem" role="listitem">
+                    <div>
+                      <div>{n.text}</div>
+                      <div className="notifMeta">{n.ts}</div>
+                    </div>
+                    {n.unread && <span className="notifUnreadDot" />}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
-          {/* 설정 아이콘 */}
+          {/* 설정 */}
           <Link
             to="/setting"
             className="topbarIconContainer"
@@ -137,7 +143,7 @@ export default function Topbar() {
           {/* 다크모드 토글 */}
           <ThemeToggle />
 
-          {/* 사용자 아바타 버튼 */}
+          {/* 사용자 아바타(이니셜) */}
           <button
             className="topbarIconContainer avatarBtn"
             aria-label="User menu"
@@ -155,7 +161,23 @@ export default function Topbar() {
 
           {/* 사용자 드롭다운 */}
           {userOpen && (
-            <UserMenu onLogout={handleLogout} />
+            <div id="user-menu" className="popup userMenu">
+              <div className="menuList">
+                <Link to="/user" className="menuItem">
+                  <PersonIcon fontSize="small" />
+                  <span>My Profile</span>
+                </Link>
+                <Link to="/setting" className="menuItem">
+                  <SettingsIcon fontSize="small" />
+                  <span>Settings</span>
+                </Link>
+                <div className="menuDivider" />
+                <button className="menuItem danger" onClick={handleLogout}>
+                  <LogoutIcon fontSize="small" />
+                  <span>Logout</span>
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
